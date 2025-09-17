@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { getQuestions } from "../api/tournaments.js";
 
-/** Mock: replace with real GET /api/tournaments/{id}/questions when available */
 function useMockQuestions(tournamentId) {
   return useMemo(() => ([
     { id: 1, text: `Q1 for tournament ${tournamentId}`, options: [
@@ -21,9 +21,29 @@ function useMockQuestions(tournamentId) {
 
 export default function PlayQuiz() {
   const { tournamentId } = useParams();
-  const questions = useMockQuestions(tournamentId);
+  const mock = useMockQuestions(tournamentId);
+
+  const [questions, setQuestions] = useState(mock);
+  const [err, setErr] = useState("");
   const [answers, setAnswers] = useState({});
   const nav = useNavigate();
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setErr("");
+        const data = await getQuestions(tournamentId);
+        if (Array.isArray(data) && data.length) {
+          setQuestions(data);
+        } else {
+          setQuestions(mock); // fallback
+        }
+      } catch (e) {
+        setErr("Using demo questions (server unavailable).");
+        setQuestions(mock);
+      }
+    })();
+  }, [tournamentId]);
 
   function select(qid, oid) {
     setAnswers(a => ({ ...a, [qid]: oid }));
@@ -40,14 +60,15 @@ export default function PlayQuiz() {
   }
 
   return (
-    <div className="grid">
+    <div className="page grid">
       <div className="card">
-        <h2>Play Quiz — Tournament #{tournamentId}</h2>
+        <h2>Play Quiz — {tournamentId ? `Tournament #${tournamentId}` : "Pick a tournament"}</h2>
+        {err && <p style={{color:"tomato"}}>{err}</p>}
         {questions.map(q => (
           <div key={q.id} className="card">
             <strong>{q.text}</strong>
             <div style={{display:"grid", gap:8, marginTop:8}}>
-              {q.options.map(o => {
+              {(q.options || []).map(o => {
                 const selected = answers[q.id] === o.id;
                 return (
                   <button
